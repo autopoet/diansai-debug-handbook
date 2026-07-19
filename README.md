@@ -6,9 +6,11 @@
 
 ## 当前状态
 
-项目处于产品设计阶段，已完成第一版 PRD。
+项目已完成第一版 PRD、技术架构与学习路线，并搭建了可以验证前后端连接的基础骨架。
 
 - [产品需求文档](./PRD.md)
+- [技术架构设计](./docs/ARCHITECTURE.md)
+- [全栈学习路线](./docs/LEARNING_ROADMAP.md)
 
 ## 计划技术栈
 
@@ -23,3 +25,45 @@
 - 通过完整项目实践系统学习前端、后端、数据库、测试与部署。
 - 最终形成可以公开演示并用于全栈或后端实习求职的作品。
 
+## 本地启动
+
+### 1. 启动后端
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+python -m uvicorn app.main:app --reload
+```
+
+后端地址：
+
+- API 健康检查：`http://localhost:8000/api/v1/health`
+- FastAPI 文档：`http://localhost:8000/docs`
+
+### 2. 启动前端
+
+另开一个终端：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+前端默认地址：`http://localhost:5173`
+
+### 3. 运行检查
+
+```powershell
+cd backend
+python -m pytest
+python -m ruff check .
+
+cd ..\frontend
+npm run lint
+npm run build
+```
+
+本地第一阶段使用 SQLite，便于立即学习和运行。进入核心数据模型阶段后切换到 PostgreSQL；仓库中的 `compose.yml` 已保留 PostgreSQL 开发配置，但需要先安装 Docker Desktop。
