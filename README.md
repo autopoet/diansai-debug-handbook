@@ -10,7 +10,6 @@
 
 - [产品需求文档](./PRD.md)
 - [技术架构设计](./docs/ARCHITECTURE.md)
-- [全栈学习路线](./docs/LEARNING_ROADMAP.md)
 
 ## 计划技术栈
 
