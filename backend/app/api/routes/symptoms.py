@@ -1,13 +1,33 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from peewee import fn
+from peewee import IntegrityError, fn
 
 from app.db.database import database_connection
 from app.models.symptom import Symptom
-from app.schemas.symptom import SymptomItem, SymptomListResponse
+from app.schemas.symptom import SymptomCreate, SymptomItem, SymptomListResponse
 
 router = APIRouter(dependencies=[Depends(database_connection)])
+
+
+@router.post(
+    "/symptoms",
+    response_model=SymptomItem,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_symptom(payload: SymptomCreate) -> SymptomItem:
+    try:
+        symptom = Symptom.create(
+            name=payload.name,
+            description=payload.description,
+        )
+    except IntegrityError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="故障现象名称已存在",
+        ) from error
+
+    return SymptomItem.model_validate(symptom)
 
 
 @router.get("/symptoms", response_model=SymptomListResponse)
