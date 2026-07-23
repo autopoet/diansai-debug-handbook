@@ -4,7 +4,7 @@ import { apiRequest } from './client'
 export type User = {
   id: number
   username: string
-  role: 'reviewer' | 'contributor'
+  role: 'admin' | 'reviewer' | 'contributor'
 }
 
 export type Credentials = {

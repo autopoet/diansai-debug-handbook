@@ -45,9 +45,20 @@ def get_current_user(
 def get_reviewer(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    if current_user.role != "reviewer":
+    if not current_user.can_review:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅审核员可以执行此操作",
+        )
+    return current_user
+
+
+def get_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅管理员可以执行此操作",
         )
     return current_user

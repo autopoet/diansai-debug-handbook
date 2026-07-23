@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from peewee import PostgresqlDatabase
 
 from app.api.dependencies import get_current_user
+from app.api.notification_helpers import notify_comment_participants
 from app.db.database import database, database_connection
 from app.models.article_revision import ArticleRevision
 from app.models.comment import Comment, CommentThread
@@ -348,7 +349,7 @@ def reply_to_thread(
         )
     now = datetime.now()
     with database.atomic():
-        Comment.create(
+        reply = Comment.create(
             thread=thread,
             author=current_user,
             body=payload.body,
@@ -356,11 +357,12 @@ def reply_to_thread(
         )
         thread.updated_at = now
         thread.save(only=[CommentThread.updated_at])
+        notify_comment_participants(thread, reply, current_user)
     return serialize_thread(thread)
 
 
 def ensure_can_change_status(thread: CommentThread, current_user: User) -> None:
-    if thread.author_id != current_user.id and current_user.role != "reviewer":
+    if thread.author_id != current_user.id and not current_user.can_review:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="只有发起者或审核员可以修改评论状态",

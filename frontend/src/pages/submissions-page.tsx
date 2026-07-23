@@ -1,6 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { articleKeys, listMyRevisions } from '../api/articles'
+import {
+  type ArticleRevision,
+  articleKeys,
+  deleteDraft,
+  listMyRevisions,
+  withdrawRevision,
+} from '../api/articles'
 import { useCurrentUser } from '../api/auth'
 import { ErrorState, ListSkeleton } from '../components/request-state'
 import styles from './workflow-page.module.css'
@@ -11,15 +17,50 @@ const statusText = {
   approved: '已发布',
   rejected: '未通过',
   superseded: '历史版本',
+  withdrawn: '已撤回',
 }
 
 export default function SubmissionsPage() {
   const currentUser = useCurrentUser()
+  const queryClient = useQueryClient()
   const revisions = useQuery({
     queryKey: articleKeys.mine,
     queryFn: ({ signal }) => listMyRevisions(signal),
     enabled: Boolean(currentUser.data),
   })
+  const revisionAction = useMutation({
+    mutationFn: async ({
+      action,
+      revision,
+    }: {
+      action: 'withdraw' | 'delete'
+      revision: ArticleRevision
+    }) => {
+      if (action === 'withdraw') {
+        await withdrawRevision(revision.symptom_id)
+      } else {
+        await deleteDraft(revision.symptom_id)
+      }
+    },
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: articleKeys.mine })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.overview })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.reviews })
+      void queryClient.invalidateQueries({
+        queryKey: articleKeys.draft(variables.revision.symptom_id),
+      })
+    },
+  })
+
+  function deleteRevision(revision: ArticleRevision) {
+    if (!window.confirm('删除这份未提交草稿？此操作无法撤销。')) return
+    revisionAction.mutate({ action: 'delete', revision })
+  }
+
+  function withdrawSubmission(revision: ArticleRevision) {
+    if (!window.confirm('撤回这份待审核版本并继续编辑？')) return
+    revisionAction.mutate({ action: 'withdraw', revision })
+  }
 
   if (!currentUser.data && !currentUser.isPending) {
     return (
@@ -47,7 +88,7 @@ export default function SubmissionsPage() {
       ) : null}
       <ul className={styles.workflowList}>
         {revisions.data?.items.map((revision) => (
-          <li key={revision.id}>
+          <li id={`revision-${revision.id}`} key={revision.id}>
             <div>
               <strong>{revision.title}</strong>
               <span>
@@ -63,11 +104,31 @@ export default function SubmissionsPage() {
               ) : null}
               {revision.review_note ? <p>审核意见：{revision.review_note}</p> : null}
             </div>
-            {revision.status === 'draft' || revision.status === 'rejected' ? (
-              <Link to={`/articles/${revision.symptom_id}?edit=1`}>继续编辑</Link>
-            ) : (
-              <Link to={`/articles/${revision.symptom_id}`}>查看文档</Link>
-            )}
+            <div className={styles.rowActions}>
+              {revision.status === 'pending' ? (
+                <button
+                  type="button"
+                  disabled={revisionAction.isPending}
+                  onClick={() => withdrawSubmission(revision)}
+                >
+                  撤回
+                </button>
+              ) : null}
+              {revision.status === 'draft' ? (
+                <button
+                  type="button"
+                  disabled={revisionAction.isPending}
+                  onClick={() => deleteRevision(revision)}
+                >
+                  删除
+                </button>
+              ) : null}
+              {revision.status === 'draft' || revision.status === 'rejected' ? (
+                <Link to={`/articles/${revision.symptom_id}?edit=1`}>继续编辑</Link>
+              ) : (
+                <Link to={`/articles/${revision.symptom_id}`}>查看文档</Link>
+              )}
+            </div>
           </li>
         ))}
       </ul>

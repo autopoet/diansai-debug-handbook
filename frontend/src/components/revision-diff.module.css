@@ -1,10 +1,6 @@
-/* Hallmark · macrostructure: Workbench · tone: technical editorial austere · anchor hue: Signal Green · genre: editorial */
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · slop: pass (58/58) */
 .diff {
   margin-top: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  overflow: hidden;
+  border-block: 1px solid var(--color-border);
   animation: diff-in var(--dur-long) var(--ease-out) both;
 }
 
@@ -13,9 +9,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-6);
-  padding: var(--space-4);
-  background: var(--color-paper-2);
-  border-bottom: 1px solid var(--color-border);
+  padding-block: var(--space-4);
 }
 
 .header div {
@@ -36,65 +30,146 @@
   line-height: 1.6;
 }
 
-.field + .field {
-  border-top: 1px solid var(--color-border);
-}
-
-.field h3 {
-  padding: var(--space-2) var(--space-4);
-  margin: 0;
-  font-size: var(--text-meta);
-  background: var(--color-paper);
+.viewSwitch {
+  display: flex;
+  gap: var(--space-5);
   border-bottom: 1px solid var(--color-border);
 }
 
-.lines {
-  overflow-x: auto;
-  font-family: var(--font-outlier);
-  font-size: var(--text-caption);
-  line-height: 1.65;
-}
-
-.line {
-  min-width: 36rem;
-  display: grid;
-  grid-template-columns: 3rem 3rem 1.5rem minmax(0, 1fr);
-}
-
-.line code {
-  padding-right: var(--space-4);
-  color: inherit;
-  font: inherit;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.number {
-  padding-inline: var(--space-2);
+.viewSwitch button {
+  position: relative;
+  min-height: 2.75rem;
+  padding: 0;
   color: var(--color-muted);
-  text-align: right;
-  user-select: none;
-  border-inline-end: 1px solid var(--color-rule);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
-.mark {
-  text-align: center;
-  user-select: none;
+.viewSwitch button::after {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 2px;
+  content: "";
+  background: var(--color-accent);
+  transform: scaleX(0);
+  transition: transform var(--dur-short) var(--ease-out);
+}
+
+.viewSwitch button[aria-pressed="true"] {
+  color: var(--color-accent);
+}
+
+.viewSwitch button[aria-pressed="true"]::after {
+  transform: scaleX(1);
+}
+
+.field {
+  padding-block: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.field h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-meta);
+}
+
+.addition,
+.deletion,
+.modification {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-block: var(--space-2);
+  border-inline-start: 2px solid;
 }
 
 .addition {
   color: var(--color-addition-ink);
   background: var(--color-addition);
+  border-color: var(--color-addition-ink);
 }
 
 .deletion {
   color: var(--color-deletion-ink);
   background: var(--color-deletion);
+  border-color: var(--color-deletion-ink);
 }
 
-.context {
+.modification {
   color: var(--color-text);
-  background: var(--color-surface);
+  background: var(--color-paper-2);
+  border-color: var(--color-accent);
+}
+
+.addition span,
+.deletion span,
+.modification span {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+}
+
+.addition p,
+.deletion p,
+.modification p {
+  margin: 0;
+  color: inherit;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.preview {
+  padding-block: var(--space-6);
+}
+
+.preview > h3,
+.preview > p {
+  margin: 0;
+}
+
+.preview > h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-section);
+}
+
+.preview > p {
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+  line-height: 1.7;
+}
+
+.preview dl {
+  margin-block: var(--space-5);
+  border-block: 1px solid var(--color-border);
+}
+
+.preview dl div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.preview dl div:last-child {
+  border-bottom: 0;
+}
+
+.preview dt {
+  color: var(--color-muted);
+}
+
+.preview dd {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.emptyPreview {
+  padding-block: var(--space-8);
+  margin: 0;
+  color: var(--color-muted);
 }
 
 @keyframes diff-in {
@@ -108,5 +183,12 @@
   .header {
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .addition,
+  .deletion,
+  .modification,
+  .preview dl div {
+    grid-template-columns: 1fr;
   }
 }

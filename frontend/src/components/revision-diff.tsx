@@ -1,97 +1,158 @@
+import { useMemo, useState } from 'react'
 import type { ArticleRevision } from '../api/articles'
+import {
+  parseRichTextValue,
+  type RichTextDocumentNode,
+} from '../lib/rich-text-document'
+import { RichTextContent } from './rich-text-content'
 import styles from './revision-diff.module.css'
 
-type DiffKind = 'context' | 'addition' | 'deletion'
-
-type DiffLine = {
-  kind: DiffKind
-  oldNumber?: number
-  newNumber?: number
-  text: string
+type Change = {
+  kind: 'addition' | 'deletion' | 'modification'
+  before?: string
+  after?: string
 }
 
-function splitLines(value: string) {
-  return value ? value.replace(/\r\n/g, '\n').split('\n') : []
+function nodeText(node: RichTextDocumentNode): string {
+  if (node.type === 'text') return node.text ?? ''
+  if (node.type === 'hardBreak') return '\n'
+  if (node.type === 'inlineFormula') return String(node.attrs?.formula ?? '')
+  return (node.content ?? []).map(nodeText).join('')
 }
 
-function fallbackDiff(oldLines: string[], newLines: string[]): DiffLine[] {
-  return [
-    ...oldLines.map((text, index) => ({
-      kind: 'deletion' as const,
-      oldNumber: index + 1,
-      text,
-    })),
-    ...newLines.map((text, index) => ({
-      kind: 'addition' as const,
-      newNumber: index + 1,
-      text,
-    })),
-  ]
-}
+function semanticBlocks(value: string) {
+  const document = parseRichTextValue(value)
+  const blocks: string[] = []
 
-function diffLines(oldValue: string, newValue: string): DiffLine[] {
-  const oldLines = splitLines(oldValue)
-  const newLines = splitLines(newValue)
-
-  if (oldLines.length * newLines.length > 250_000) {
-    return fallbackDiff(oldLines, newLines)
+  function visit(node: RichTextDocumentNode, context = '') {
+    const text = nodeText(node).trim()
+    switch (node.type) {
+      case 'heading':
+        blocks.push(`标题 ${Number(node.attrs?.level) || 2} · ${text}`)
+        return
+      case 'paragraph':
+        if (text) blocks.push(`${context || '段落'} · ${text}`)
+        return
+      case 'listItem':
+        if (text) blocks.push(`${context || '列表项'} · ${text}`)
+        return
+      case 'bulletList':
+        for (const child of node.content ?? []) visit(child, '无序列表')
+        return
+      case 'orderedList':
+        for (const child of node.content ?? []) visit(child, '有序列表')
+        return
+      case 'blockquote':
+        if (text) blocks.push(`引用 · ${text}`)
+        return
+      case 'codeBlock':
+        blocks.push(`代码块 · ${text || '（空）'}`)
+        return
+      case 'image':
+        blocks.push(
+          `图片 · ${String(node.attrs?.alt ?? '未填写说明')} · ${String(node.attrs?.src ?? '')}`,
+        )
+        return
+      case 'tableRow':
+        blocks.push(
+          `表格行 · ${(node.content ?? []).map(nodeText).map((item) => item.trim()).join(' | ')}`,
+        )
+        return
+      case 'horizontalRule':
+        blocks.push('分隔线')
+        return
+      default:
+        for (const child of node.content ?? []) visit(child, context)
+    }
   }
 
+  visit(document)
+  return blocks
+}
+
+function blockDiff(before: string[], after: string[]) {
   const table = Array.from(
-    { length: oldLines.length + 1 },
-    () => new Uint32Array(newLines.length + 1),
+    { length: before.length + 1 },
+    () => new Uint32Array(after.length + 1),
   )
-
-  for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex -= 1) {
-    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex -= 1) {
-      table[oldIndex][newIndex] =
-        oldLines[oldIndex] === newLines[newIndex]
-          ? table[oldIndex + 1][newIndex + 1] + 1
-          : Math.max(
-              table[oldIndex + 1][newIndex],
-              table[oldIndex][newIndex + 1],
-            )
+  for (let left = before.length - 1; left >= 0; left -= 1) {
+    for (let right = after.length - 1; right >= 0; right -= 1) {
+      table[left][right] =
+        before[left] === after[right]
+          ? table[left + 1][right + 1] + 1
+          : Math.max(table[left + 1][right], table[left][right + 1])
     }
   }
 
-  const result: DiffLine[] = []
-  let oldIndex = 0
-  let newIndex = 0
-  while (oldIndex < oldLines.length || newIndex < newLines.length) {
+  const changes: Change[] = []
+  let left = 0
+  let right = 0
+  while (left < before.length || right < after.length) {
     if (
-      oldIndex < oldLines.length &&
-      newIndex < newLines.length &&
-      oldLines[oldIndex] === newLines[newIndex]
+      left < before.length &&
+      right < after.length &&
+      before[left] === after[right]
     ) {
-      result.push({
-        kind: 'context',
-        oldNumber: oldIndex + 1,
-        newNumber: newIndex + 1,
-        text: oldLines[oldIndex],
-      })
-      oldIndex += 1
-      newIndex += 1
-    } else if (
-      newIndex < newLines.length &&
-      (oldIndex === oldLines.length ||
-        table[oldIndex][newIndex + 1] > table[oldIndex + 1][newIndex])
+      left += 1
+      right += 1
+      continue
+    }
+
+    const removed: string[] = []
+    const added: string[] = []
+    while (
+      left < before.length &&
+      (right === after.length ||
+        table[left + 1][right] >= table[left][right + 1])
     ) {
-      result.push({
-        kind: 'addition',
-        newNumber: newIndex + 1,
-        text: newLines[newIndex],
-      })
-      newIndex += 1
-    } else {
-      result.push({
-        kind: 'deletion',
-        oldNumber: oldIndex + 1,
-        text: oldLines[oldIndex],
-      })
-      oldIndex += 1
+      removed.push(before[left])
+      left += 1
+      if (
+        left < before.length &&
+        right < after.length &&
+        before[left] === after[right]
+      ) {
+        break
+      }
+    }
+    while (
+      right < after.length &&
+      (left === before.length ||
+        table[left][right + 1] > table[left + 1][right])
+    ) {
+      added.push(after[right])
+      right += 1
+      if (
+        left < before.length &&
+        right < after.length &&
+        before[left] === after[right]
+      ) {
+        break
+      }
+    }
+    if (!removed.length && left < before.length) {
+      removed.push(before[left])
+      left += 1
+    }
+    if (!added.length && right < after.length) {
+      added.push(after[right])
+      right += 1
+    }
+
+    const length = Math.max(removed.length, added.length)
+    for (let index = 0; index < length; index += 1) {
+      const oldBlock = removed[index]
+      const newBlock = added[index]
+      changes.push(
+        oldBlock && newBlock
+          ? { kind: 'modification', before: oldBlock, after: newBlock }
+          : oldBlock
+            ? { kind: 'deletion', before: oldBlock }
+            : { kind: 'addition', after: newBlock },
+      )
     }
   }
-  return result
+  return changes
 }
 
 const fields = [
@@ -100,8 +161,29 @@ const fields = [
   ['适用范围', (revision: ArticleRevision) => revision.applicability],
   ['安全提示', (revision: ArticleRevision) => revision.safety],
   ['快速检查清单', (revision: ArticleRevision) => revision.checklist.join('\n')],
-  ['正文', (revision: ArticleRevision) => revision.body],
 ] as const
+
+function RevisionPreview({
+  revision,
+  emptyLabel,
+}: {
+  revision: ArticleRevision | null
+  emptyLabel: string
+}) {
+  if (!revision) return <p className={styles.emptyPreview}>{emptyLabel}</p>
+  return (
+    <div className={styles.preview}>
+      <h3>{revision.title}</h3>
+      <p>{revision.summary}</p>
+      <dl>
+        <div><dt>适用范围</dt><dd>{revision.applicability || '—'}</dd></div>
+        <div><dt>安全提示</dt><dd>{revision.safety || '—'}</dd></div>
+        <div><dt>快速检查</dt><dd>{revision.checklist.join('；') || '—'}</dd></div>
+      </dl>
+      <RichTextContent value={revision.body} />
+    </div>
+  )
+}
 
 export function RevisionDiff({
   baseRevision,
@@ -110,13 +192,29 @@ export function RevisionDiff({
   baseRevision: ArticleRevision | null
   revision: ArticleRevision
 }) {
-  const changedFields = fields
-    .map(([label, read]) => ({
-      label,
-      lines: diffLines(baseRevision ? read(baseRevision) : '', read(revision)),
-      changed: !baseRevision || read(baseRevision) !== read(revision),
-    }))
-    .filter((field) => field.changed)
+  const [view, setView] = useState<'changes' | 'before' | 'after'>('changes')
+  const changedFields = useMemo(
+    () =>
+      fields.flatMap(([label, read]) => {
+        const before = baseRevision ? read(baseRevision) : ''
+        const after = read(revision)
+        return before === after
+          ? []
+          : [{ label, changes: blockDiff(before.split('\n'), after.split('\n')) }]
+      }),
+    [baseRevision, revision],
+  )
+  const bodyChanges = useMemo(
+    () =>
+      blockDiff(
+        baseRevision ? semanticBlocks(baseRevision.body) : [],
+        semanticBlocks(revision.body),
+      ),
+    [baseRevision, revision],
+  )
+  const totalChanges =
+    changedFields.reduce((count, field) => count + field.changes.length, 0) +
+    bodyChanges.length
 
   return (
     <section className={styles.diff} aria-label="版本差异">
@@ -127,40 +225,77 @@ export function RevisionDiff({
             {' → '}
             v{revision.version_number}
           </strong>
-          <span>{changedFields.length} 个部分发生变化</span>
+          <span>{totalChanges} 处可见内容变化</span>
         </div>
         <p>{revision.edit_summary}</p>
       </header>
 
-      {changedFields.map((field) => (
-        <section key={field.label} className={styles.field}>
-          <h3>{field.label}</h3>
-          <div className={styles.lines} role="table" aria-label={`${field.label}差异`}>
-            {field.lines.map((line, index) => (
-              <div
-                key={`${line.kind}-${line.oldNumber ?? 0}-${line.newNumber ?? 0}-${index}`}
-                className={`${styles.line} ${styles[line.kind]}`}
-                role="row"
-              >
-                <span className={styles.number} aria-label="旧版本行号">
-                  {line.oldNumber ?? ''}
-                </span>
-                <span className={styles.number} aria-label="新版本行号">
-                  {line.newNumber ?? ''}
-                </span>
-                <span className={styles.mark} aria-hidden="true">
-                  {line.kind === 'addition'
-                    ? '+'
-                    : line.kind === 'deletion'
-                      ? '−'
-                      : ' '}
-                </span>
-                <code>{line.text || ' '}</code>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+      <nav className={styles.viewSwitch} aria-label="差异视图">
+        {([
+          ['changes', '变更'],
+          ['before', '修改前'],
+          ['after', '修改后'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => setView(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {view === 'before' ? (
+        <RevisionPreview revision={baseRevision} emptyLabel="这是新文档，没有修改前版本。" />
+      ) : null}
+      {view === 'after' ? (
+        <RevisionPreview revision={revision} emptyLabel="" />
+      ) : null}
+      {view === 'changes' ? (
+        <div className={styles.changes}>
+          {changedFields.map((field) => (
+            <section key={field.label} className={styles.field}>
+              <h3>{field.label}</h3>
+              {field.changes.map((change, index) => (
+                <ChangeBlock
+                  key={`${field.label}-${index}`}
+                  change={change}
+                />
+              ))}
+            </section>
+          ))}
+          {bodyChanges.length ? (
+            <section className={styles.field}>
+              <h3>正文</h3>
+              {bodyChanges.map((change, index) => (
+                <ChangeBlock key={`body-${index}`} change={change} />
+              ))}
+            </section>
+          ) : null}
+          {!totalChanges ? <p className={styles.emptyPreview}>可见内容没有变化。</p> : null}
+        </div>
+      ) : null}
     </section>
+  )
+}
+
+function ChangeBlock({ change }: { change: Change }) {
+  if (change.kind === 'modification') {
+    return (
+      <div className={styles.modification}>
+        <span>修改前</span>
+        <p>{change.before}</p>
+        <span>修改后</span>
+        <p>{change.after}</p>
+      </div>
+    )
+  }
+  return (
+    <div className={styles[change.kind]}>
+      <span>{change.kind === 'addition' ? '新增' : '删除'}</span>
+      <p>{change.after ?? change.before}</p>
+    </div>
   )
 }

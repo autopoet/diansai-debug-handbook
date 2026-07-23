@@ -2,13 +2,18 @@ import json
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from peewee import IntegrityError, fn
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from peewee import IntegrityError, PostgresqlDatabase, fn
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, get_optional_current_user
+from app.api.notification_helpers import (
+    notify_reviewers,
+    remove_pending_review_notifications,
+)
 from app.db.database import database, database_connection
 from app.models.article_revision import ArticleRevision
 from app.models.favorite import Favorite
+from app.models.feedback import ArticleFeedback
 from app.models.symptom import Symptom
 from app.models.user import User
 from app.schemas.article import (
@@ -21,6 +26,8 @@ from app.schemas.article import (
     FavoriteItem,
     FavoriteListResponse,
     FavoriteState,
+    FeedbackSummary,
+    FeedbackVote,
     RevisionListResponse,
 )
 from app.schemas.symptom import SymptomItem
@@ -55,8 +62,10 @@ def serialize_revision(revision: ArticleRevision) -> ArticleRevisionItem:
         reviewer_id=revision.reviewer_id,
         reviewer_name=(revision.reviewer.username if revision.reviewer_id else None),
         base_revision_id=revision.base_revision_id,
+        source_revision_id=revision.source_revision_id,
         version_number=revision.version_number,
         status=revision.status,
+        origin=revision.origin,
         title=revision.title,
         summary=revision.summary,
         applicability=revision.applicability,
@@ -91,6 +100,34 @@ def get_public_symptom_or_404(symptom_id: int) -> Symptom:
             detail="故障现象不存在",
         )
     return symptom
+
+
+def get_locked_symptom_or_404(symptom_id: int) -> Symptom:
+    query = Symptom.select().where(Symptom.id == symptom_id)
+    if isinstance(database, PostgresqlDatabase):
+        query = query.for_update()
+    symptom = query.first()
+    if symptom is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="故障现象不存在",
+        )
+    return symptom
+
+
+def get_current_published_revision(symptom_id: int) -> ArticleRevision:
+    revision = (
+        ArticleRevision.select()
+        .where((ArticleRevision.symptom == symptom_id) & (ArticleRevision.status == "approved"))
+        .order_by(ArticleRevision.published_at.desc(), ArticleRevision.id.desc())
+        .first()
+    )
+    if revision is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="这篇文档还没有已发布版本",
+        )
+    return revision
 
 
 def ensure_can_edit_symptom(symptom: Symptom, current_user: User) -> None:
@@ -200,7 +237,7 @@ def list_favorites(
     favorites = list(
         Favorite.select(Favorite, Symptom)
         .join(Symptom)
-        .where(Favorite.user == current_user)
+        .where((Favorite.user == current_user) & Symptom.is_published)
         .order_by(Favorite.created_at.desc())
     )
     return FavoriteListResponse(
@@ -320,54 +357,59 @@ def save_draft(
     payload: ArticleDraftPayload,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ArticleRevisionItem:
-    symptom = get_symptom_or_404(symptom_id)
-    ensure_can_edit_symptom(symptom, current_user)
-    revision = (
-        ArticleRevision.select()
-        .where(
-            (ArticleRevision.symptom == symptom)
-            & (ArticleRevision.author == current_user)
-            & (ArticleRevision.status == "draft")
-        )
-        .order_by(ArticleRevision.updated_at.desc())
-        .first()
-    )
     values = draft_values(payload)
-    if revision is None:
-        if (
+    with database.atomic():
+        symptom = get_locked_symptom_or_404(symptom_id)
+        ensure_can_edit_symptom(symptom, current_user)
+        revision_query = (
             ArticleRevision.select()
             .where(
                 (ArticleRevision.symptom == symptom)
                 & (ArticleRevision.author == current_user)
-                & (ArticleRevision.status == "pending")
+                & (ArticleRevision.status == "draft")
             )
-            .exists()
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="当前修改正在审核，请等待审核结果",
+            .order_by(ArticleRevision.updated_at.desc())
+        )
+        if isinstance(database, PostgresqlDatabase):
+            revision_query = revision_query.for_update()
+        revision = revision_query.first()
+        if revision is None:
+            if (
+                ArticleRevision.select()
+                .where(
+                    (ArticleRevision.symptom == symptom)
+                    & (ArticleRevision.author == current_user)
+                    & (ArticleRevision.status == "pending")
+                )
+                .exists()
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="当前修改正在审核，请等待审核结果",
+                )
+            base_revision = (
+                ArticleRevision.select()
+                .where(
+                    (ArticleRevision.symptom == symptom) & (ArticleRevision.status == "approved")
+                )
+                .order_by(ArticleRevision.published_at.desc())
+                .first()
             )
-        base_revision = (
-            ArticleRevision.select()
-            .where((ArticleRevision.symptom == symptom) & (ArticleRevision.status == "approved"))
-            .order_by(ArticleRevision.published_at.desc())
-            .first()
-        )
-        next_version = (
-            ArticleRevision.select(fn.COALESCE(fn.MAX(ArticleRevision.version_number), 0) + 1)
-            .where(ArticleRevision.symptom == symptom)
-            .scalar()
-        )
-        revision = ArticleRevision.create(
-            symptom=symptom,
-            author=current_user,
-            base_revision=base_revision,
-            version_number=next_version,
-            **values,
-        )
-    else:
-        ArticleRevision.update(**values).where(ArticleRevision.id == revision.id).execute()
-        revision = ArticleRevision.get_by_id(revision.id)
+            next_version = (
+                ArticleRevision.select(fn.COALESCE(fn.MAX(ArticleRevision.version_number), 0) + 1)
+                .where(ArticleRevision.symptom == symptom)
+                .scalar()
+            )
+            revision = ArticleRevision.create(
+                symptom=symptom,
+                author=current_user,
+                base_revision=base_revision,
+                version_number=next_version,
+                **values,
+            )
+        else:
+            (ArticleRevision.update(**values).where(ArticleRevision.id == revision.id).execute())
+            revision = ArticleRevision.get_by_id(revision.id)
 
     revision.author = current_user
     return serialize_revision(revision)
@@ -378,62 +420,214 @@ def submit_draft(
     symptom_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ArticleRevisionItem:
-    symptom = get_symptom_or_404(symptom_id)
-    ensure_can_edit_symptom(symptom, current_user)
-    revision = (
-        ArticleRevision.select(ArticleRevision, User)
-        .join(User, on=(ArticleRevision.author == User.id))
-        .where(
-            (ArticleRevision.symptom == symptom_id)
-            & (ArticleRevision.author == current_user)
-            & (ArticleRevision.status == "draft")
+    with database.atomic():
+        symptom = get_locked_symptom_or_404(symptom_id)
+        ensure_can_edit_symptom(symptom, current_user)
+        revision_query = (
+            ArticleRevision.select()
+            .where(
+                (ArticleRevision.symptom == symptom)
+                & (ArticleRevision.author == current_user)
+                & (ArticleRevision.status == "draft")
+            )
+            .order_by(ArticleRevision.updated_at.desc())
         )
-        .order_by(ArticleRevision.updated_at.desc())
-        .first()
-    )
-    if revision is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="请先保存草稿",
-        )
+        if isinstance(database, PostgresqlDatabase):
+            revision_query = revision_query.for_update()
+        revision = revision_query.first()
+        if revision is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="请先保存草稿",
+            )
+        if not revision.edit_summary.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="提交审核前请填写修改说明",
+            )
 
-    if not revision.edit_summary.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="提交审核前请填写修改说明",
+        current_published = (
+            ArticleRevision.select()
+            .where((ArticleRevision.symptom == symptom) & (ArticleRevision.status == "approved"))
+            .order_by(ArticleRevision.published_at.desc())
+            .first()
         )
+        current_published_id = current_published.id if current_published else None
+        if revision.base_revision_id != current_published_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="公开版本已经更新，请重新载入并合并修改",
+            )
+        if (
+            ArticleRevision.select()
+            .where(
+                (ArticleRevision.symptom == symptom)
+                & (ArticleRevision.status == "pending")
+                & (ArticleRevision.id != revision.id)
+            )
+            .exists()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="这个条目已有待审核修改，请等待处理后再提交",
+            )
 
-    current_published = (
-        ArticleRevision.select()
-        .where((ArticleRevision.symptom == symptom_id) & (ArticleRevision.status == "approved"))
-        .order_by(ArticleRevision.published_at.desc())
-        .first()
-    )
-    current_published_id = current_published.id if current_published else None
-    if revision.base_revision_id != current_published_id:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="公开版本已经更新，请重新载入并合并修改",
-        )
+        now = datetime.now()
+        revision.status = "pending"
+        revision.submitted_at = now
+        revision.updated_at = now
+        revision.save()
+        revision.author = current_user
+        notify_reviewers(revision)
 
-    other_pending = (
-        ArticleRevision.select()
-        .where(
-            (ArticleRevision.symptom == symptom_id)
-            & (ArticleRevision.status == "pending")
-            & (ArticleRevision.id != revision.id)
-        )
-        .exists()
-    )
-    if other_pending:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="这个条目已有待审核修改，请等待处理后再提交",
-        )
-
-    now = datetime.now()
-    revision.status = "pending"
-    revision.submitted_at = now
-    revision.updated_at = now
-    revision.save()
     return serialize_revision(revision)
+
+
+@router.post("/{symptom_id}/withdraw", response_model=ArticleRevisionItem)
+def withdraw_pending_revision(
+    symptom_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> ArticleRevisionItem:
+    with database.atomic():
+        symptom = get_locked_symptom_or_404(symptom_id)
+        ensure_can_edit_symptom(symptom, current_user)
+        revision_query = (
+            ArticleRevision.select()
+            .where(
+                (ArticleRevision.symptom == symptom)
+                & (ArticleRevision.author == current_user)
+                & (ArticleRevision.status == "pending")
+            )
+            .order_by(ArticleRevision.submitted_at.desc())
+        )
+        if isinstance(database, PostgresqlDatabase):
+            revision_query = revision_query.for_update()
+        revision = revision_query.first()
+        if revision is None:
+            raise HTTPException(status_code=404, detail="没有可以撤回的待审核版本")
+
+        now = datetime.now()
+        revision.status = "withdrawn"
+        revision.updated_at = now
+        revision.save(only=[ArticleRevision.status, ArticleRevision.updated_at])
+        next_version = (
+            ArticleRevision.select(fn.COALESCE(fn.MAX(ArticleRevision.version_number), 0) + 1)
+            .where(ArticleRevision.symptom == symptom)
+            .scalar()
+        )
+        draft = ArticleRevision.create(
+            symptom=symptom,
+            author=current_user,
+            base_revision=revision.base_revision,
+            source_revision=revision,
+            version_number=next_version,
+            status="draft",
+            origin="withdrawal",
+            title=revision.title,
+            summary=revision.summary,
+            applicability=revision.applicability,
+            safety=revision.safety,
+            checklist_json=revision.checklist_json,
+            body=revision.body,
+            edit_summary=revision.edit_summary,
+            created_at=now,
+            updated_at=now,
+        )
+        remove_pending_review_notifications(revision)
+    draft.author = current_user
+    return serialize_revision(draft)
+
+
+@router.delete("/{symptom_id}/draft", status_code=status.HTTP_204_NO_CONTENT)
+def delete_unsubmitted_draft(
+    symptom_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    with database.atomic():
+        symptom = get_locked_symptom_or_404(symptom_id)
+        ensure_can_edit_symptom(symptom, current_user)
+        revision_query = (
+            ArticleRevision.select()
+            .where(
+                (ArticleRevision.symptom == symptom)
+                & (ArticleRevision.author == current_user)
+                & (ArticleRevision.status == "draft")
+                & ArticleRevision.submitted_at.is_null()
+            )
+            .order_by(ArticleRevision.updated_at.desc())
+        )
+        if isinstance(database, PostgresqlDatabase):
+            revision_query = revision_query.for_update()
+        revision = revision_query.first()
+        if revision is None:
+            raise HTTPException(status_code=404, detail="没有可以删除的未提交草稿")
+
+        revision.delete_instance()
+        has_revisions = ArticleRevision.select().where(ArticleRevision.symptom == symptom).exists()
+        if not symptom.is_published and not has_revisions:
+            symptom.delete_instance()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{symptom_id}/feedback", response_model=FeedbackSummary)
+def get_article_feedback(
+    symptom_id: int,
+    current_user: Annotated[User | None, Depends(get_optional_current_user)],
+) -> FeedbackSummary:
+    get_public_symptom_or_404(symptom_id)
+    revision = get_current_published_revision(symptom_id)
+    counts = dict(
+        ArticleFeedback.select(ArticleFeedback.vote, fn.COUNT(ArticleFeedback.id))
+        .where(ArticleFeedback.revision == revision)
+        .group_by(ArticleFeedback.vote)
+        .tuples()
+    )
+    my_vote = None
+    if current_user is not None:
+        my_vote = (
+            ArticleFeedback.select(ArticleFeedback.vote)
+            .where((ArticleFeedback.revision == revision) & (ArticleFeedback.user == current_user))
+            .scalar()
+        )
+    return FeedbackSummary(
+        revision_id=revision.id,
+        solved=counts.get("solved", 0),
+        not_solved=counts.get("not_solved", 0),
+        my_vote=my_vote,
+    )
+
+
+@router.put("/{symptom_id}/feedback", response_model=FeedbackSummary)
+def set_article_feedback(
+    symptom_id: int,
+    payload: FeedbackVote,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> FeedbackSummary:
+    get_public_symptom_or_404(symptom_id)
+    revision = get_current_published_revision(symptom_id)
+    now = datetime.now()
+    feedback, created = ArticleFeedback.get_or_create(
+        user=current_user,
+        revision=revision,
+        defaults={"vote": payload.vote, "created_at": now, "updated_at": now},
+    )
+    if not created and feedback.vote != payload.vote:
+        feedback.vote = payload.vote
+        feedback.updated_at = now
+        feedback.save(only=[ArticleFeedback.vote, ArticleFeedback.updated_at])
+    return get_article_feedback(symptom_id, current_user)
+
+
+@router.delete("/{symptom_id}/feedback", response_model=FeedbackSummary)
+def remove_article_feedback(
+    symptom_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> FeedbackSummary:
+    get_public_symptom_or_404(symptom_id)
+    revision = get_current_published_revision(symptom_id)
+    (
+        ArticleFeedback.delete()
+        .where((ArticleFeedback.revision == revision) & (ArticleFeedback.user == current_user))
+        .execute()
+    )
+    return get_article_feedback(symptom_id, current_user)

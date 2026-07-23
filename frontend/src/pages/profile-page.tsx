@@ -5,7 +5,9 @@ import {
   FilePenLine,
   LogOut,
   ShieldCheck,
+  ShieldPlus,
 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   articleKeys,
@@ -14,6 +16,12 @@ import {
   type ContributionItem,
 } from '../api/articles'
 import { authKeys, logout, useCurrentUser } from '../api/auth'
+import { ApiError } from '../api/client'
+import {
+  applyForReviewer,
+  getMyReviewerApplication,
+  reviewerApplicationKeys,
+} from '../api/governance'
 import { ErrorState, ListSkeleton } from '../components/request-state'
 import styles from './profile-page.module.css'
 
@@ -23,6 +31,7 @@ const statusText: Record<ContributionItem['status'], string> = {
   approved: '已发布',
   rejected: '需修改',
   superseded: '历史版本',
+  withdrawn: '已撤回',
 }
 
 export default function ProfilePage() {
@@ -30,6 +39,8 @@ export default function ProfilePage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const [applicationOpen, setApplicationOpen] = useState(false)
+  const [statement, setStatement] = useState('')
   const activeTab =
     searchParams.get('tab') === 'favorites' ? 'favorites' : 'contributions'
   const overview = useQuery({
@@ -41,6 +52,21 @@ export default function ProfilePage() {
     queryKey: articleKeys.favorites,
     queryFn: ({ signal }) => listFavorites(signal),
     enabled: Boolean(currentUser.data),
+  })
+  const reviewerApplication = useQuery({
+    queryKey: reviewerApplicationKeys.mine,
+    queryFn: ({ signal }) => getMyReviewerApplication(signal),
+    enabled: currentUser.data?.role === 'contributor',
+    refetchInterval: (query) =>
+      query.state.data?.status === 'pending' ? 60_000 : false,
+  })
+  const applicationMutation = useMutation({
+    mutationFn: () => applyForReviewer(statement),
+    onSuccess: (application) => {
+      queryClient.setQueryData(reviewerApplicationKeys.mine, application)
+      setApplicationOpen(false)
+      setStatement('')
+    },
   })
   const logoutMutation = useMutation({
     mutationFn: logout,
@@ -65,6 +91,10 @@ export default function ProfilePage() {
   if (!currentUser.data) return null
 
   const initial = currentUser.data.username.slice(0, 1).toLocaleUpperCase()
+  const canReview =
+    currentUser.data.role === 'admin' ||
+    currentUser.data.role === 'reviewer' ||
+    reviewerApplication.data?.status === 'approved'
 
   return (
     <main id="main-content" className={styles.page}>
@@ -75,11 +105,18 @@ export default function ProfilePage() {
         </div>
         <h1>{currentUser.data.username}</h1>
         <div className={styles.identityActions}>
-          {currentUser.data.role === 'reviewer' ? (
+          {canReview ? (
             <Link to="/reviews">
               <ShieldCheck aria-hidden="true" size={17} />
               审核队列
             </Link>
+          ) : null}
+          {currentUser.data.role === 'contributor' &&
+          !reviewerApplication.data ? (
+            <button type="button" onClick={() => setApplicationOpen(true)}>
+              <ShieldPlus aria-hidden="true" size={17} />
+              申请审核权
+            </button>
           ) : null}
           <button
             type="button"
@@ -91,6 +128,69 @@ export default function ProfilePage() {
           </button>
         </div>
       </header>
+
+      <div className={styles.roleLine}>
+        <span>
+          {currentUser.data.role === 'admin'
+            ? '管理员'
+            : currentUser.data.role === 'reviewer'
+              ? '审核员'
+              : reviewerApplication.data?.status === 'approved'
+                ? '审核员'
+              : reviewerApplication.data?.status === 'pending'
+                ? '审核权申请中'
+                : '贡献者'}
+        </span>
+        {reviewerApplication.data?.status === 'rejected' ? (
+          <button type="button" onClick={() => setApplicationOpen(true)}>
+            重新申请
+          </button>
+        ) : null}
+      </div>
+
+      {reviewerApplication.data?.status === 'rejected' &&
+      reviewerApplication.data.review_note ? (
+        <p className={styles.applicationNote}>
+          上次申请未通过：{reviewerApplication.data.review_note}
+        </p>
+      ) : null}
+
+      {applicationOpen ? (
+        <section className={styles.applicationForm} aria-label="申请审核权">
+          <label>
+            说明你熟悉的方向与审核经验
+            <textarea
+              rows={4}
+              minLength={10}
+              maxLength={1000}
+              value={statement}
+              placeholder="例如：熟悉开关电源和 STM32，愿意核对测量条件与修复验证。"
+              onChange={(event) => setStatement(event.target.value)}
+            />
+          </label>
+          {applicationMutation.isError ? (
+            <p role="alert">
+              {applicationMutation.error instanceof ApiError
+                ? applicationMutation.error.message
+                : '申请提交失败'}
+            </p>
+          ) : null}
+          <div>
+            <button type="button" onClick={() => setApplicationOpen(false)}>
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={
+                statement.trim().length < 10 || applicationMutation.isPending
+              }
+              onClick={() => applicationMutation.mutate()}
+            >
+              提交申请
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <nav className={styles.tabs} aria-label="个人内容">
         <Link

@@ -34,6 +34,8 @@
 
 .modeHeader button,
 .addButton,
+.sectionHeading button,
+.pendingActions button,
 .addSectionButton,
 .bodySection button,
 .checklistEditor button,
@@ -60,6 +62,8 @@
 
 .modeHeader button,
 .addButton,
+.sectionHeading button,
+.pendingActions button,
 .addSectionButton,
 .actions button {
   padding-inline: var(--space-4);
@@ -158,6 +162,17 @@
   border-block: var(--rule-hair) solid var(--color-danger);
 }
 
+.pendingActions {
+  max-width: 34rem;
+  padding-block: var(--space-8);
+}
+
+.pendingActions p {
+  margin: 0 0 var(--space-4);
+  color: var(--color-muted);
+  line-height: 1.7;
+}
+
 .checklistEditor {
   display: flex;
   flex-direction: column;
@@ -223,6 +238,73 @@
   padding-top: var(--space-10);
 }
 
+.richTextSection {
+  padding-block: var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.sectionHeading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-section);
+}
+
+.completeness {
+  padding: var(--space-5) 0;
+  margin-top: var(--space-6);
+  border-block: 1px solid var(--color-warning);
+}
+
+.completeness > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.completeness span,
+.completeness p {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+  line-height: 1.7;
+}
+
+.completeness p {
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.completeness > div:last-child {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.completeness button {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.completeness .primary {
+  color: var(--color-accent-ink);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
 .actions {
   position: sticky;
   bottom: var(--space-sm);
@@ -244,6 +326,10 @@
   color: var(--color-accent-ink);
   background: var(--color-accent);
   border-color: var(--color-accent);
+}
+
+.actions .danger {
+  color: var(--color-danger);
 }
 
 .actions button:disabled {
@@ -289,6 +375,8 @@
 
 .modeHeader button:active,
 .addButton:active,
+.sectionHeading button:active,
+.pendingActions button:active,
 .addSectionButton:active,
 .bodySection button:active,
 .checklistEditor button:active,
@@ -306,6 +394,8 @@
 @media (hover: hover) and (pointer: fine) {
   .modeHeader button:hover,
   .addButton:hover,
+  .sectionHeading button:hover,
+  .pendingActions button:hover,
   .addSectionButton:hover,
   .bodySection button:hover,
   .checklistEditor button:hover,
@@ -323,7 +413,8 @@
 
 @media (max-width: 40rem) {
   .modeHeader,
-  .modeHeader div {
+  .modeHeader div,
+  .sectionHeading {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -340,5 +431,10 @@
   .actions .primary {
     grid-column: 1 / -1;
     grid-row: 1;
+  }
+
+  .completeness > div:last-child {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

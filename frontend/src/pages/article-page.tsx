@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bookmark,
   ChevronRight,
+  CircleOff,
   MessageSquareText,
   PencilLine,
+  RotateCcw,
   ShieldAlert,
 } from 'lucide-react'
 import {
@@ -22,6 +24,8 @@ import {
   getPublishedArticle,
   listPublishedRevisions,
   removeFavorite,
+  rollbackArticle,
+  unpublishArticle,
 } from '../api/articles'
 import { useCurrentUser } from '../api/auth'
 import { ApiError } from '../api/client'
@@ -31,6 +35,7 @@ import {
   ArticleCommentsPanel,
   type CommentAnchorDraft,
 } from '../components/article-comments-panel'
+import { ArticleFeedback } from '../components/article-feedback'
 import { InlineArticleEditor } from '../components/inline-article-editor'
 import { EmptyState, ErrorState, ListSkeleton } from '../components/request-state'
 import {
@@ -95,6 +100,7 @@ export default function ArticlePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const editRequested = searchParams.get('edit') === '1'
   const submitted = searchParams.get('submitted') === '1'
+  const requestedThreadId = Number(searchParams.get('thread'))
   const commentsDialogRef = useRef<HTMLDialogElement>(null)
   const documentRef = useRef<HTMLElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -108,6 +114,10 @@ export default function ArticlePage() {
     top: number
   } | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null)
+  const [governanceAction, setGovernanceAction] = useState<
+    { type: 'unpublish' } | { type: 'rollback'; revisionId: number } | null
+  >(null)
+  const [governanceReason, setGovernanceReason] = useState('')
   const currentUser = useCurrentUser()
 
   const symptomQuery = useQuery({
@@ -156,6 +166,31 @@ export default function ArticlePage() {
       void queryClient.invalidateQueries({ queryKey: articleKeys.favorites })
     },
   })
+  const unpublishMutation = useMutation({
+    mutationFn: () => unpublishArticle(symptomId, governanceReason.trim()),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: symptomKeys.all })
+      void queryClient.invalidateQueries({
+        queryKey: articleKeys.published(symptomId),
+      })
+      navigate('/explore')
+    },
+  })
+  const rollbackMutation = useMutation({
+    mutationFn: (revisionId: number) =>
+      rollbackArticle(symptomId, revisionId, governanceReason.trim()),
+    onSuccess: () => {
+      setGovernanceAction(null)
+      setGovernanceReason('')
+      void queryClient.invalidateQueries({
+        queryKey: articleKeys.published(symptomId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: articleKeys.versions(symptomId),
+      })
+      void queryClient.invalidateQueries({ queryKey: symptomKeys.all })
+    },
+  })
 
   const outline = useMemo(() => {
     if (!publishedQuery.data) return []
@@ -179,6 +214,18 @@ export default function ArticlePage() {
       })) ?? [],
     [commentsQuery.data?.items],
   )
+
+  useEffect(() => {
+    if (
+      !Number.isInteger(requestedThreadId) ||
+      requestedThreadId < 1 ||
+      !commentsQuery.data?.items.some((thread) => thread.id === requestedThreadId)
+    ) {
+      return
+    }
+    setActiveThreadId(requestedThreadId)
+    if (!commentsDialogRef.current?.open) commentsDialogRef.current?.showModal()
+  }, [commentsQuery.data?.items, requestedThreadId])
 
   useEffect(() => {
     let frame = 0
@@ -379,6 +426,8 @@ export default function ArticlePage() {
             publishedRevision={publishedQuery.data}
             onCancel={stopEditing}
             onSubmitted={finishSubmission}
+            onPublished={stopEditing}
+            onDeleted={() => navigate('/submissions')}
           />
         </article>
       </main>
@@ -436,6 +485,19 @@ export default function ArticlePage() {
               <button className={styles.inlineCommentButton} type="button" aria-controls="comments-dialog" aria-haspopup="dialog" onClick={openComments}>
                 <MessageSquareText aria-hidden="true" size={18} />评论 {commentCount}
               </button>
+              {currentUser.data?.role === 'admin' ? (
+                <button
+                  className={styles.inlineCommentButton}
+                  type="button"
+                  onClick={() => {
+                    setGovernanceReason('')
+                    setGovernanceAction({ type: 'unpublish' })
+                  }}
+                >
+                  <CircleOff aria-hidden="true" size={17} />
+                  治理
+                </button>
+              ) : null}
             </div>
             <h1>{published.title}</h1>
             <p className={styles.summary}>{published.summary}</p>
@@ -443,6 +505,10 @@ export default function ArticlePage() {
               <span>v{published.version_number}</span>
               <span>修改者 {published.author_name}</span>
               <span>审核者 {published.reviewer_name ?? '—'}</span>
+              {published.origin === 'official_seed' ? <span>官方种子</span> : null}
+              {published.origin === 'rollback' ? (
+                <span>回滚自版本 #{published.source_revision_id}</span>
+              ) : null}
               <span>{new Date(published.reviewed_at ?? published.published_at ?? published.updated_at).toLocaleDateString('zh-CN')}</span>
             </div>
             {versionsQuery.data?.items.length ? (
@@ -455,10 +521,81 @@ export default function ArticlePage() {
                       <span>{revision.author_name} 修改于 {new Date(revision.submitted_at ?? revision.updated_at).toLocaleString('zh-CN')}</span>
                       <span>{revision.reviewer_name ?? '—'} 审核于 {revision.reviewed_at ? new Date(revision.reviewed_at).toLocaleString('zh-CN') : '—'}</span>
                       {revision.edit_summary ? <p>{revision.edit_summary}</p> : null}
+                      {currentUser.data?.role === 'admin' &&
+                      revision.id !== published.id ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGovernanceReason('')
+                            setGovernanceAction({
+                              type: 'rollback',
+                              revisionId: revision.id,
+                            })
+                          }}
+                        >
+                          <RotateCcw aria-hidden="true" size={14} />
+                          恢复为新版本
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                 ))}</ol>
               </details>
+            ) : null}
+            {governanceAction ? (
+              <aside className={styles.governance}>
+                <strong>
+                  {governanceAction.type === 'unpublish'
+                    ? '紧急撤下这篇文章'
+                    : `从旧版本 #${governanceAction.revisionId} 生成回滚版本`}
+                </strong>
+                <p>
+                  {governanceAction.type === 'unpublish'
+                    ? '文章将停止公开，但版本、评论和反馈都会保留。'
+                    : '历史不会被改写，系统会新增一个可追溯的发布版本。'}
+                </p>
+                <textarea
+                  rows={2}
+                  required
+                  value={governanceReason}
+                  placeholder="说明操作原因"
+                  onChange={(event) => setGovernanceReason(event.target.value)}
+                />
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setGovernanceAction(null)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      governanceReason.trim().length < 3 ||
+                      unpublishMutation.isPending ||
+                      rollbackMutation.isPending
+                    }
+                    onClick={() => {
+                      if (governanceAction.type === 'unpublish') {
+                        unpublishMutation.mutate()
+                      } else {
+                        rollbackMutation.mutate(governanceAction.revisionId)
+                      }
+                    }}
+                  >
+                    确认
+                  </button>
+                </div>
+                {unpublishMutation.isError || rollbackMutation.isError ? (
+                  <span role="alert">
+                    {unpublishMutation.error instanceof ApiError
+                      ? unpublishMutation.error.message
+                      : rollbackMutation.error instanceof ApiError
+                        ? rollbackMutation.error.message
+                        : '操作失败，请重试'}
+                  </span>
+                ) : null}
+              </aside>
             ) : null}
           </header>
 
@@ -469,6 +606,7 @@ export default function ArticlePage() {
           <div ref={bodyRef} className={styles.articleBody}>
             <RichTextContent value={published.body} highlights={commentHighlights} onHighlightClick={activateThread} />
           </div>
+          <ArticleFeedback symptomId={symptomId} />
         </article>
 
         <aside className={styles.progressRail} aria-label={`阅读进度 ${readingProgress}%`} style={{ '--reading-progress': `${readingProgress}%` } as CSSProperties}>

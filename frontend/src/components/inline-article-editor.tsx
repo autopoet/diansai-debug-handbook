@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, X } from 'lucide-react'
+import {
+  FileStack,
+  Plus,
+  RotateCcw,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {
   type FormEvent,
   lazy,
@@ -11,14 +18,23 @@ import {
   type ArticleDraft,
   type ArticleRevision,
   articleKeys,
+  deleteDraft,
   getDraft,
+  publishOfficialSeed,
   saveDraft,
   submitDraft,
+  withdrawRevision,
 } from '../api/articles'
 import { ApiError } from '../api/client'
 import { useCurrentUser } from '../api/auth'
+import { notificationKeys } from '../api/notifications'
 import { uploadImage } from '../api/uploads'
 import { demoArticles } from '../content/demo-articles'
+import {
+  insertTroubleshootingTemplate,
+  missingDraftSections,
+  richTextPlainText,
+} from '../lib/troubleshooting-template'
 import styles from './inline-article-editor.module.css'
 
 const RichTextEditor = lazy(() =>
@@ -69,6 +85,8 @@ export function InlineArticleEditor({
   publishedRevision,
   onCancel,
   onSubmitted,
+  onPublished,
+  onDeleted,
 }: {
   symptomId: number
   symptomName: string
@@ -76,12 +94,18 @@ export function InlineArticleEditor({
   publishedRevision?: ArticleRevision
   onCancel: () => void
   onSubmitted: () => void
+  onPublished: () => void
+  onDeleted: () => void
 }) {
   const queryClient = useQueryClient()
   const currentUser = useCurrentUser()
   const [draft, setDraft] = useState<ArticleDraft>(emptyDraft)
   const [initialized, setInitialized] = useState(false)
   const [localError, setLocalError] = useState('')
+  const [confirmAction, setConfirmAction] = useState<
+    'submit' | 'official' | null
+  >(null)
+  const [missingSections, setMissingSections] = useState<string[]>([])
   const draftQuery = useQuery({
     queryKey: articleKeys.draft(symptomId),
     queryFn: ({ signal }) => getDraft(symptomId, signal),
@@ -102,7 +126,54 @@ export function InlineArticleEditor({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: articleKeys.mine })
       void queryClient.invalidateQueries({ queryKey: articleKeys.reviews })
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       onSubmitted()
+    },
+  })
+  const withdrawMutation = useMutation({
+    mutationFn: () => withdrawRevision(symptomId),
+    onSuccess: (revision) => {
+      queryClient.setQueryData(articleKeys.draft(symptomId), revision)
+      setDraft({
+        title: revision.title,
+        summary: revision.summary,
+        applicability: revision.applicability,
+        safety: revision.safety,
+        checklist: revision.checklist.length ? revision.checklist : [''],
+        body: revision.body,
+        edit_summary: revision.edit_summary,
+      })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.mine })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.overview })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.reviews })
+    },
+  })
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteDraft(symptomId),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: articleKeys.draft(symptomId) })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.mine })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.overview })
+      onDeleted()
+    },
+  })
+  const officialMutation = useMutation({
+    mutationFn: async () => {
+      const saved = await saveMutation.mutateAsync(normalizedDraft())
+      return publishOfficialSeed(
+        saved.id,
+        draft.edit_summary.trim() || '发布首批官方种子内容',
+      )
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: articleKeys.published(symptomId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: articleKeys.versions(symptomId),
+      })
+      void queryClient.invalidateQueries({ queryKey: articleKeys.mine })
+      onPublished()
     },
   })
 
@@ -139,23 +210,79 @@ export function InlineArticleEditor({
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setLocalError('')
-    const submitter = (event.nativeEvent as SubmitEvent)
-      .submitter as HTMLButtonElement | null
-    const isSubmitting = submitter?.value === 'submit'
-    if (isSubmitting && !draft.edit_summary.trim()) {
-      setLocalError('提交审核前请填写修改说明。')
-      return
-    }
-
-    const payload = {
+  function normalizedDraft() {
+    return {
       ...draft,
       checklist: draft.checklist.map((item) => item.trim()).filter(Boolean),
     }
-    await saveMutation.mutateAsync(payload)
-    if (isSubmitting) await submitMutation.mutateAsync()
+  }
+
+  async function performAction(action: 'save' | 'submit' | 'official') {
+    setLocalError('')
+    setConfirmAction(null)
+    if (action !== 'save' && !draft.edit_summary.trim()) {
+      setLocalError('提交审核前请填写修改说明。')
+      return
+    }
+    if (action === 'official') {
+      if (
+        !window.confirm(
+          '确认以维护者身份发布为官方种子内容？此入口只用于首批文章，发布会立即生效并留下记录。',
+        )
+      ) {
+        return
+      }
+      await officialMutation.mutateAsync()
+      return
+    }
+    await saveMutation.mutateAsync(normalizedDraft())
+    if (action === 'submit') await submitMutation.mutateAsync()
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null
+    const action = (submitter?.value ?? 'save') as
+      | 'save'
+      | 'submit'
+      | 'official'
+    if (action === 'save') {
+      await performAction(action)
+      return
+    }
+    if (!draft.edit_summary.trim()) {
+      setLocalError('提交前请填写修改说明。')
+      return
+    }
+    const missing = missingDraftSections(draft)
+    if (missing.length) {
+      setMissingSections(missing)
+      setConfirmAction(action)
+      return
+    }
+    await performAction(action)
+  }
+
+  function useTemplate() {
+    const hasBody = Boolean(richTextPlainText(draft.body))
+    if (
+      hasBody &&
+      !window.confirm('保留现有正文，并在末尾追加标准排障模板？')
+    ) {
+      return
+    }
+    updateField('body', insertTroubleshootingTemplate(draft.body))
+  }
+
+  function removeDraft() {
+    if (!window.confirm('删除这份未提交草稿？此操作无法撤销。')) return
+    deleteMutation.mutate()
+  }
+
+  function withdrawDraft() {
+    if (!window.confirm('撤回这份待审核版本并继续编辑？')) return
+    withdrawMutation.mutate()
   }
 
   if (draftFailed) {
@@ -192,11 +319,33 @@ export function InlineArticleEditor({
             返回文档
           </button>
         </header>
+        <div className={styles.pendingActions}>
+          <p>撤回后，这份版本会恢复为草稿并保留全部内容。</p>
+          <button
+            type="button"
+            disabled={withdrawMutation.isPending}
+            onClick={withdrawDraft}
+          >
+            <RotateCcw aria-hidden="true" size={16} />
+            {withdrawMutation.isPending ? '正在撤回…' : '撤回并继续编辑'}
+          </button>
+          {withdrawMutation.isError ? (
+            <span className={styles.error} role="alert">
+              {withdrawMutation.error instanceof ApiError
+                ? withdrawMutation.error.message
+                : '撤回失败，请重试'}
+            </span>
+          ) : null}
+        </div>
       </section>
     )
   }
 
-  const mutationError = saveMutation.error ?? submitMutation.error
+  const mutationError =
+    saveMutation.error ??
+    submitMutation.error ??
+    officialMutation.error ??
+    deleteMutation.error
 
   return (
     <form className={styles.editor} onSubmit={handleSubmit}>
@@ -304,7 +453,13 @@ export function InlineArticleEditor({
       </section>
 
       <section className={styles.richTextSection}>
-        <h2>排查正文</h2>
+        <div className={styles.sectionHeading}>
+          <h2>排查正文</h2>
+          <button type="button" onClick={useTemplate}>
+            <FileStack aria-hidden="true" size={16} />
+            使用排障模板
+          </button>
+        </div>
         <Suspense fallback={<p className={styles.loading}>正在加载正文编辑器…</p>}>
           <RichTextEditor
             value={draft.body}
@@ -335,6 +490,31 @@ export function InlineArticleEditor({
               : '保存失败，请重试')}
         </p>
       ) : null}
+      {confirmAction ? (
+        <aside className={styles.completeness} aria-live="polite">
+          <div>
+            <strong>这些内容还没有明确写出</strong>
+            <span>{missingSections.join('、')}</span>
+          </div>
+          <p>
+            这是写作提醒，不会限制特殊案例。你可以返回补充，或确认后继续。
+          </p>
+          <div>
+            <button type="button" onClick={() => setConfirmAction(null)}>
+              返回补充
+            </button>
+            <button
+              className={styles.primary}
+              type="button"
+              disabled={saveMutation.isPending || officialMutation.isPending}
+              onClick={() => void performAction(confirmAction)}
+            >
+              <Send aria-hidden="true" size={16} />
+              仍然{confirmAction === 'official' ? '作为官方种子发布' : '提交审核'}
+            </button>
+          </div>
+        </aside>
+      ) : null}
       {saveMutation.isSuccess && !submitMutation.isPending ? (
         <p className={styles.success} role="status">
           草稿已保存
@@ -342,21 +522,47 @@ export function InlineArticleEditor({
       ) : null}
 
       <footer className={styles.actions}>
-        <button type="button" onClick={onCancel}>
-          取消
-        </button>
-        <button
-          type="submit"
-          value="save"
-          disabled={saveMutation.isPending || submitMutation.isPending}
-        >
-          保存草稿
+        {draftQuery.data &&
+        draftQuery.data.status === 'draft' ? (
+          <button
+            className={styles.danger}
+            type="button"
+            disabled={deleteMutation.isPending}
+            onClick={removeDraft}
+          >
+            <Trash2 aria-hidden="true" size={16} />
+            删除草稿
+          </button>
+        ) : (
+          <button type="button" onClick={onCancel}>
+            取消
+          </button>
+        )}
+        {currentUser.data?.role === 'admin' && !publishedRevision ? (
+          <button
+            type="submit"
+            value="official"
+            disabled={
+              saveMutation.isPending ||
+              submitMutation.isPending ||
+              officialMutation.isPending
+            }
+          >
+            发布官方种子
+          </button>
+        ) : null}
+        <button type="submit" value="save" disabled={saveMutation.isPending}>
+          保存
         </button>
         <button
           className={styles.primary}
           type="submit"
           value="submit"
-          disabled={saveMutation.isPending || submitMutation.isPending}
+          disabled={
+            saveMutation.isPending ||
+            submitMutation.isPending ||
+            officialMutation.isPending
+          }
         >
           提交审核
         </button>

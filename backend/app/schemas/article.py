@@ -48,8 +48,10 @@ class ArticleRevisionItem(BaseModel):
     reviewer_id: int | None
     reviewer_name: str | None
     base_revision_id: int | None
+    source_revision_id: int | None
     version_number: int
     status: str
+    origin: str
     title: str
     summary: str
     applicability: str
@@ -117,3 +119,14 @@ class ReviewQueueItem(BaseModel):
 class ReviewQueueResponse(BaseModel):
     items: list[ReviewQueueItem]
     total: int
+
+
+class FeedbackVote(BaseModel):
+    vote: str = Field(pattern=r"^(solved|not_solved)$")
+
+
+class FeedbackSummary(BaseModel):
+    revision_id: int
+    solved: int
+    not_solved: int
+    my_vote: str | None

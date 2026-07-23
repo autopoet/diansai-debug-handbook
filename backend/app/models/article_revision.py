@@ -22,8 +22,15 @@ class ArticleRevision(BaseModel):
         null=True,
         on_delete="SET NULL",
     )
+    source_revision = ForeignKeyField(
+        "self",
+        backref="copied_revisions",
+        null=True,
+        on_delete="SET NULL",
+    )
     version_number = IntegerField(default=1)
     status = CharField(max_length=16, default="draft", index=True)
+    origin = CharField(max_length=24, default="community", index=True)
     title = CharField(max_length=100)
     summary = TextField()
     applicability = TextField()

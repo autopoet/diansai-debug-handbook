@@ -14,6 +14,7 @@ import {
   useState,
 } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NotificationSignal } from './notification-signal'
 import styles from './spatial-chrome.module.css'
 
 const navigation = [
@@ -142,6 +143,7 @@ export function SpatialChrome() {
             <ActiveIcon aria-hidden="true" size={21} />
             <span>{activeItem.label}</span>
           </button>
+          <NotificationSignal />
 
           {satellites.map((item, index) => {
             const Icon = item.icon

@@ -87,6 +87,11 @@ DEMO_BODY = {
 
 
 def _ensure_user(username: str, password: str, role: str) -> User:
+    if (
+        role == "admin"
+        and User.select().where((User.role == "admin") & (User.username != username)).exists()
+    ):
+        role = "reviewer"
     user = User.get_or_none(User.username == username)
     if user is None:
         return User.create(username=username, password_hash=hash_password(password), role=role)
@@ -122,7 +127,7 @@ def seed_demo_data(
     """幂等创建本地演示用户和一篇已审核发布的真实文章。"""
     now = datetime.now()
     with database.atomic():
-        reviewer = _ensure_user(reviewer_username, reviewer_password, "reviewer")
+        reviewer = _ensure_user(reviewer_username, reviewer_password, "admin")
         contributor = _ensure_user(contributor_username, contributor_password, "contributor")
         symptom = _ensure_demo_symptom()
         revision = ArticleRevision.get_or_none(
