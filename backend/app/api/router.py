@@ -1,6 +1,16 @@
 from fastapi import APIRouter
 
-from app.api.routes import articles, auth, comments, health, reviews, symptoms, uploads
+from app.api.routes import (
+    articles,
+    auth,
+    comments,
+    governance,
+    health,
+    notifications,
+    reviews,
+    symptoms,
+    uploads,
+)
 
 api_router = APIRouter()
 
@@ -12,3 +22,6 @@ api_router.include_router(comments.article_router, tags=["comments"])
 api_router.include_router(comments.router, tags=["comments"])
 api_router.include_router(uploads.router, tags=["uploads"])
 api_router.include_router(reviews.router, tags=["reviews"])
+api_router.include_router(governance.application_router, tags=["governance"])
+api_router.include_router(governance.admin_router, tags=["governance"])
+api_router.include_router(notifications.router, tags=["notifications"])

@@ -14,6 +14,14 @@ class User(BaseModel):
     class Meta:
         table_name = "users"
 
+    @property
+    def can_review(self) -> bool:
+        return self.role in {"admin", "reviewer"}
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
 
 class AuthSession(BaseModel):
     user = ForeignKeyField(User, backref="sessions", on_delete="CASCADE")

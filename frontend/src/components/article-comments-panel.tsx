@@ -262,7 +262,8 @@ export function ArticleCommentsPanel({
             <footer className={styles.threadActions}>
               {currentUser &&
               (currentUser.id === thread.author_id ||
-                currentUser.role === 'reviewer') ? (
+              currentUser.role === 'reviewer' ||
+              currentUser.role === 'admin') ? (
                 <button
                   type="button"
                   disabled={stateMutation.isPending}

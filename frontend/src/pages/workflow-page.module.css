@@ -228,11 +228,52 @@
 }
 
 .workflowList,
-.reviewList {
+.reviewList,
+.applicationList {
   padding: 0;
   margin: var(--space-8) 0 0;
   list-style: none;
   border-top: 1px solid var(--color-border);
+}
+
+.queueTabs {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.queueTabs a {
+  position: relative;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-muted);
+  text-decoration: none;
+}
+
+.queueTabs a::after {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 2px;
+  content: "";
+  background: var(--color-accent);
+  transform: scaleX(0);
+  transition: transform var(--dur-short) var(--ease-out);
+}
+
+.queueTabs a[aria-current="page"] {
+  color: var(--color-accent);
+}
+
+.queueTabs a[aria-current="page"]::after {
+  transform: scaleX(1);
+}
+
+.queueTabs span {
+  font-family: var(--font-outlier);
+  font-size: var(--text-caption);
 }
 
 .workflowList li {
@@ -321,6 +362,81 @@
   font-size: var(--text-meta);
   background: var(--color-warning-soft);
   border-block: var(--rule-hair) solid var(--color-warning);
+}
+
+.rowActions {
+  display: flex !important;
+  align-items: center;
+  flex-direction: row !important;
+  gap: var(--space-3) !important;
+}
+
+.rowActions button {
+  min-height: 2.75rem;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.rowActions button:hover {
+  color: var(--color-danger);
+}
+
+.rowActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.applicationItem {
+  padding-block: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.applicationItem > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.applicationItem time,
+.applicationItem > p {
+  color: var(--color-muted);
+  font-size: var(--text-meta);
+}
+
+.applicationItem > p {
+  margin-block: var(--space-3) var(--space-5);
+  line-height: 1.7;
+}
+
+.applicationItem label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-semibold);
+}
+
+.applicationItem textarea,
+.applicationItem select {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-ink);
+  line-height: 1.6;
+  background: var(--color-surface);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-input);
+}
+
+.applicationItem textarea {
+  resize: vertical;
+}
+
+.applicationItem .formActions {
+  margin-top: var(--space-4);
 }
 
 .authForm input:focus-visible,

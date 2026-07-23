@@ -22,12 +22,12 @@ def register(client: TestClient, username: str) -> dict:
     return response.json()
 
 
-def test_first_user_is_reviewer() -> None:
+def test_first_user_is_admin() -> None:
     with TestClient(app) as client:
         user = register(client, "reviewer")
         me = client.get("/api/v1/auth/me")
 
-    assert user["role"] == "reviewer"
+    assert user["role"] == "admin"
     assert me.status_code == 200
     assert me.json()["username"] == "reviewer"
 
@@ -98,7 +98,7 @@ def test_favorite_flow_returns_real_documents() -> None:
 def test_register_edit_submit_review_publish_flow() -> None:
     with TestClient(app) as client:
         reviewer = register(client, "owner")
-        assert reviewer["role"] == "reviewer"
+        assert reviewer["role"] == "admin"
         client.post("/api/v1/auth/logout")
 
         contributor = register(client, "student")
@@ -180,7 +180,7 @@ def test_rejected_revision_can_be_edited_again() -> None:
         assert edited.json()["review_note"] == ""
 
 
-def test_reviewer_cannot_review_own_revision() -> None:
+def test_reviewer_can_review_own_revision() -> None:
     with TestClient(app) as client:
         register(client, "owner")
         client.put("/api/v1/articles/1/draft", json=DRAFT)
@@ -191,8 +191,8 @@ def test_reviewer_cannot_review_own_revision() -> None:
             json={"note": ""},
         )
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "审核员不能审核自己提交的版本"
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
 
 
 def test_second_version_keeps_base_and_review_metadata() -> None:

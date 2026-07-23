@@ -45,7 +45,7 @@ def start_session(response: Response, user: User) -> None:
 def register(payload: Credentials, response: Response) -> UserItem:
     try:
         with database.atomic():
-            role = "reviewer" if User.select().count() == 0 else "contributor"
+            role = "admin" if User.select().count() == 0 else "contributor"
             user = User.create(
                 username=payload.username,
                 password_hash=hash_password(payload.password),

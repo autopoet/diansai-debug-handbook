@@ -49,7 +49,7 @@ def get_symptom(
     symptom = Symptom.get_or_none(Symptom.id == symptom_id)
 
     can_view_unpublished = current_user is not None and (
-        current_user.role == "reviewer"
+        current_user.can_review
         or ArticleRevision.select()
         .where((ArticleRevision.symptom == symptom_id) & (ArticleRevision.author == current_user))
         .exists()

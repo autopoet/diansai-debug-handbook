@@ -20,13 +20,21 @@ export type ArticleRevision = ArticleDraft & {
   reviewer_name: string | null
   base_revision_id: number | null
   version_number: number
-  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'superseded'
+  status:
+    | 'draft'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'superseded'
+    | 'withdrawn'
   review_note: string
   created_at: string
   updated_at: string
   submitted_at: string | null
   reviewed_at: string | null
   published_at: string | null
+  origin?: 'community' | 'official_seed' | 'rollback' | 'withdrawal'
+  source_revision_id?: number | null
 }
 
 export type RevisionListResponse = {
@@ -98,6 +106,8 @@ export const articleKeys = {
   favorite: (symptomId: number) =>
     ['articles', symptomId, 'favorite'] as const,
   reviews: ['reviews'] as const,
+  feedback: (symptomId: number) =>
+    ['articles', symptomId, 'feedback'] as const,
 }
 
 export function createArticle(payload: NewArticlePayload) {
@@ -136,6 +146,78 @@ export function submitDraft(symptomId: number) {
   return apiRequest<ArticleRevision>(`/articles/${symptomId}/submit`, {
     method: 'POST',
   })
+}
+
+export function withdrawRevision(symptomId: number) {
+  return apiRequest<ArticleRevision>(`/articles/${symptomId}/withdraw`, {
+    method: 'POST',
+  })
+}
+
+export function deleteDraft(symptomId: number) {
+  return apiRequest<void>(`/articles/${symptomId}/draft`, {
+    method: 'DELETE',
+  })
+}
+
+export function publishOfficialSeed(revisionId: number, note: string) {
+  return apiRequest<ArticleRevision>(
+    `/admin/revisions/${revisionId}/publish-official`,
+    { method: 'POST', body: { note } },
+  )
+}
+
+export type ArticleFeedback = {
+  revision_id: number
+  solved: number
+  not_solved: number
+  my_vote: 'solved' | 'not_solved' | null
+}
+
+export function getArticleFeedback(
+  symptomId: number,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ArticleFeedback>(`/articles/${symptomId}/feedback`, {
+    signal,
+  })
+}
+
+export function setArticleFeedback(
+  symptomId: number,
+  vote: 'solved' | 'not_solved',
+) {
+  return apiRequest<ArticleFeedback>(`/articles/${symptomId}/feedback`, {
+    method: 'PUT',
+    body: { vote },
+  })
+}
+
+export function clearArticleFeedback(symptomId: number) {
+  return apiRequest<ArticleFeedback>(`/articles/${symptomId}/feedback`, {
+    method: 'DELETE',
+  })
+}
+
+export function unpublishArticle(symptomId: number, reason: string) {
+  return apiRequest<void>(`/admin/articles/${symptomId}/unpublish`, {
+    method: 'POST',
+    body: { reason },
+  })
+}
+
+export function rollbackArticle(
+  symptomId: number,
+  revisionId: number,
+  reason: string,
+) {
+  return apiRequest<ArticleRevision>(
+    `/admin/articles/${symptomId}/rollback/${revisionId}`,
+    {
+      method: 'POST',
+      body: { reason },
+    },
+  )
 }
 
 export function listMyRevisions(signal?: AbortSignal) {
