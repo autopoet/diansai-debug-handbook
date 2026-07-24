@@ -29,6 +29,12 @@
   --color-accent-active: #0058a9;
   --color-accent-ink: #fff;
   --color-accent-soft: rgb(0 120 231 / 10%);
+  --color-accent-bloom: oklch(79% 0.085 242);
+  --gradient-accent-bloom: radial-gradient(
+    ellipse at center bottom,
+    color-mix(in oklch, var(--color-accent-bloom) 22%, transparent) 0%,
+    transparent 82%
+  );
   --color-verified: oklch(52% 0.13 148);
   --color-verified-soft: oklch(95% 0.035 148);
   --color-warning: oklch(56% 0.13 72);
@@ -59,6 +65,7 @@
   --color-glass-edge: var(--color-rule);
 
   --color-focus: #005eae;
+  --color-focus-quiet: oklch(38% 0.025 248);
   --font-display:
     "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong,
     ui-serif, serif;

@@ -19,17 +19,20 @@
   color: var(--color-ink);
   background: transparent;
   border-block: 1px solid var(--color-rule-strong);
+  transform-origin: center bottom;
+  transition: transform var(--dur-short) var(--ease-out);
 }
 
 .control::before {
   position: absolute;
-  inset: 50% 0 auto;
+  inset: 0;
   z-index: -1;
-  height: 1px;
   content: "";
-  background: var(--color-track-soft);
+  background: var(--gradient-accent-bloom);
   opacity: 0;
-  transform: scaleX(0.25);
+  transform: scaleX(0.28) scaleY(0.48);
+  transform-origin: center bottom;
+  pointer-events: none;
   transition:
     opacity var(--dur-short) var(--ease-out),
     transform var(--dur-medium) var(--ease-out);
@@ -51,21 +54,35 @@
 }
 
 .form:focus-within .control::before {
-  opacity: 1;
-  transform: scaleX(1);
+  opacity: 0.92;
+  transform: scaleX(1) scaleY(1);
+}
+
+.form:focus-within .control {
+  border-color: transparent;
+  transform: scale(1.01);
 }
 
 .form:focus-within .control::after {
   animation: search-scan 520ms var(--ease-out) both;
 }
 
-.form:has(.input:focus-visible) .control {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 4px;
-}
-
 .form:has(.input[aria-invalid="true"]) .control {
   border-color: var(--color-danger);
+}
+
+.form:has(.input[aria-invalid="true"]) .control::before {
+  opacity: 0;
+}
+
+.form:has(.input:disabled) .control {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.form:has(.input:disabled) .control::before {
+  opacity: 0;
 }
 
 .searchIcon {
@@ -78,6 +95,10 @@
 
 .form:focus-within .searchIcon {
   transform: translateX(var(--space-3xs));
+}
+
+.form:has(.input:focus-visible) .control::before {
+  opacity: 1;
 }
 
 .input {
@@ -299,7 +320,28 @@
   }
 }
 
+@media (forced-colors: active) {
+  .input:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .control,
+  .control::before {
+    transition-duration: var(--dur-micro);
+  }
+
+  .form:focus-within .control {
+    transform: none;
+  }
+
+  .control::before,
+  .form:focus-within .control::before {
+    transform: none;
+  }
+
   .control::after,
   .suggestions {
     animation-duration: var(--dur-micro);
