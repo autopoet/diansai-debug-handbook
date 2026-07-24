@@ -1,5 +1,6 @@
-/* Hallmark · genre: editorial · macrostructure: Identity Form
- * design-system: DESIGN.md · designed-as-app · motion: field-arrive / mode-change / button-press
+/* Hallmark · component: authentication controls · genre: editorial · theme: DESIGN.md
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * critique: P5 H4 E5 S5 R5 V4 · motion: focus-bloom / mode-change / button-press
  */
 
 .page {
@@ -69,35 +70,53 @@
 
 .modeSwitch button {
   position: relative;
+  isolation: isolate;
   min-height: 3.5rem;
   color: var(--color-muted);
   font-weight: var(--weight-semibold);
   background: transparent;
   border: 0;
   cursor: pointer;
+  transform-origin: center bottom;
   white-space: nowrap;
-}
-
-.modeSwitch button::after {
-  position: absolute;
-  inset: auto 22% -1px;
-  height: 2px;
-  content: "";
-  background: var(--color-accent);
-  opacity: 0;
-  transform: scaleX(0.4);
   transition:
+    color var(--dur-short) var(--ease-out),
     opacity var(--dur-short) var(--ease-out),
     transform var(--dur-short) var(--ease-out);
 }
 
+.modeSwitch button::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: var(--gradient-accent-bloom);
+  opacity: 0;
+  transform: scaleX(0.24) scaleY(0.48);
+  transform-origin: center bottom;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-short) var(--ease-out),
+    transform var(--dur-medium) var(--ease-out);
+}
+
 .modeSwitch button[aria-pressed="true"] {
   color: var(--color-accent);
+  transform: scale(1.025);
 }
 
 .modeSwitch button[aria-pressed="true"]::after {
-  opacity: 1;
-  transform: scaleX(1);
+  opacity: 0.9;
+  transform: scaleX(1) scaleY(1);
+}
+
+.modeSwitch button:active {
+  transform: scale(0.985);
+}
+
+.modeSwitch button:focus-visible {
+  outline: 2px solid var(--color-focus-quiet);
+  outline-offset: 2px;
 }
 
 .authPanel header {
@@ -129,17 +148,48 @@
 }
 
 .authForm label > div {
+  position: relative;
+  isolation: isolate;
   min-height: 3.5rem;
   display: flex;
   align-items: center;
   gap: var(--space-xs);
   color: var(--color-muted);
   border-bottom: 1px solid var(--color-rule-strong);
+  transform-origin: center bottom;
+  transition:
+    color var(--dur-short) var(--ease-out),
+    transform var(--dur-short) var(--ease-out);
+}
+
+.authForm label > div::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: var(--gradient-accent-bloom);
+  opacity: 0;
+  transform: scaleX(0.28) scaleY(0.48);
+  transform-origin: center bottom;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-short) var(--ease-out),
+    transform var(--dur-medium) var(--ease-out);
 }
 
 .authForm label > div:focus-within {
   color: var(--color-accent);
-  border-color: var(--color-accent);
+  border-color: transparent;
+  transform: scale(1.012);
+}
+
+.authForm label > div:focus-within::before {
+  opacity: 0.92;
+  transform: scaleX(1) scaleY(1);
+}
+
+.authForm label > div:has(input:focus-visible)::before {
+  opacity: 1;
 }
 
 .authForm input {
@@ -150,11 +200,6 @@
   background: transparent;
   border: 0;
   outline: 0;
-}
-
-.authForm label > div:has(input:focus-visible) {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 3px;
 }
 
 .authForm input::placeholder {
@@ -185,6 +230,12 @@
   transform: scale(0.98);
 }
 
+.primaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .errorText {
   min-height: 1lh;
   margin: 0;
@@ -193,7 +244,11 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .primaryButton:hover {
+  .modeSwitch button:not([aria-pressed="true"]):hover {
+    color: var(--color-ink);
+  }
+
+  .primaryButton:not(:disabled):hover {
     background: var(--color-accent-hover);
   }
 }
@@ -211,8 +266,34 @@
   }
 }
 
+@media (forced-colors: active) {
+  .authForm input:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .authPanel {
     animation-duration: var(--dur-micro);
+  }
+
+  .modeSwitch button,
+  .modeSwitch button::after,
+  .authForm label > div,
+  .authForm label > div::before {
+    transition-duration: var(--dur-micro);
+  }
+
+  .modeSwitch button[aria-pressed="true"],
+  .authForm label > div:focus-within {
+    transform: none;
+  }
+
+  .modeSwitch button::after,
+  .modeSwitch button[aria-pressed="true"]::after,
+  .authForm label > div::before,
+  .authForm label > div:focus-within::before {
+    transform: none;
   }
 }

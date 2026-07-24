@@ -25,6 +25,7 @@
 
 .searchDock {
   position: fixed;
+  isolation: isolate;
   inset-block-start: 1.35rem;
   inset-inline-end: var(--page-gutter);
   z-index: var(--z-dropdown);
@@ -40,9 +41,25 @@
   border: 1px solid var(--color-rule);
   border-radius: 50%;
   box-shadow: var(--shadow-paper);
+  transform-origin: center bottom;
   transition:
     transform var(--dur-short) var(--ease-out),
     opacity var(--dur-short) var(--ease-out);
+}
+
+.searchDock::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: var(--gradient-accent-bloom);
+  opacity: 0;
+  transform: scaleX(0.28) scaleY(0.48);
+  transform-origin: center bottom;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-short) var(--ease-out),
+    transform var(--dur-medium) var(--ease-out);
 }
 
 .searchDock > svg {
@@ -53,6 +70,20 @@
   width: min(25rem, 38vw);
   justify-content: flex-start;
   border-radius: var(--radius-sm);
+}
+
+.searchDock[data-open="true"]:focus-within {
+  border-color: transparent;
+  transform: scale(1.012);
+}
+
+.searchDock[data-open="true"]:focus-within::before {
+  opacity: 0.9;
+  transform: scaleX(1) scaleY(1);
+}
+
+.searchDock:has(input:focus-visible)::before {
+  opacity: 1;
 }
 
 .searchDock input {
@@ -284,6 +315,13 @@
   }
 }
 
+@media (forced-colors: active) {
+  .searchDock input:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .coreBall,
   .coreBall::before,
@@ -291,5 +329,18 @@
   .satellite,
   .searchDock {
     transition-duration: var(--dur-micro);
+  }
+
+  .searchDock::before {
+    transition-duration: var(--dur-micro);
+  }
+
+  .searchDock[data-open="true"]:focus-within {
+    transform: none;
+  }
+
+  .searchDock::before,
+  .searchDock[data-open="true"]:focus-within::before {
+    transform: none;
   }
 }
