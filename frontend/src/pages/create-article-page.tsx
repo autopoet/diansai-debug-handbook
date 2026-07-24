@@ -77,8 +77,7 @@ export default function CreateArticlePage() {
       </header>
 
       <form className={styles.form} onSubmit={submit}>
-        <span className={styles.eyebrow}>创建条目</span>
-        <h1>先记录你看到的故障</h1>
+        <h1 className="sr-only">新建条目</h1>
 
         <label className={styles.titleField}>
           <span>故障现象</span>
@@ -87,7 +86,6 @@ export default function CreateArticlePage() {
             required
             minLength={2}
             maxLength={100}
-            placeholder="例如：稳压输出一带负载就掉压"
             value={article.name}
             onChange={(event) => updateField('name', event.target.value)}
           />
@@ -100,7 +98,6 @@ export default function CreateArticlePage() {
             minLength={4}
             maxLength={500}
             rows={3}
-            placeholder="只描述能观察、测量或复现的表现"
             value={article.description}
             onChange={(event) => updateField('description', event.target.value)}
           />
@@ -115,7 +112,6 @@ export default function CreateArticlePage() {
         ) : null}
 
         <footer>
-          <p>下一步填写适用范围、检查清单和完整排查正文。</p>
           <button type="submit" disabled={createMutation.isPending}>
             {createMutation.isPending ? '正在创建…' : '创建并开始编写'}
             <ArrowRight aria-hidden="true" size={17} />

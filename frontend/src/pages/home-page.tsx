@@ -90,7 +90,10 @@ export default function HomePage() {
         </div>
 
         <div className={styles.searchStage}>
-          <SearchForm variant="hero" />
+          <SearchForm
+            variant="hero"
+            placeholder="描述故障现象、器件或错误信息…"
+          />
         </div>
 
         <a className={styles.scrollCue} href="#documents">

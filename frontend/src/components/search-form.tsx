@@ -17,6 +17,7 @@ type SearchFormProps = {
   showSuggestions?: boolean
   autoFocus?: boolean
   hint?: string
+  placeholder?: string
 }
 
 function useDebouncedValue(value: string, delay: number) {
@@ -36,6 +37,7 @@ export function SearchForm({
   showSuggestions = true,
   autoFocus = false,
   hint = '',
+  placeholder = '',
 }: SearchFormProps) {
   const navigate = useNavigate()
   const listboxId = useId()
@@ -144,7 +146,7 @@ export function SearchForm({
           maxLength={20}
           autoComplete="off"
           autoFocus={autoFocus}
-          placeholder="描述故障现象、器件或错误信息…"
+          placeholder={placeholder}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={suggestionPanelOpen}

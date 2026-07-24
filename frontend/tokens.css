@@ -72,6 +72,7 @@
   --font-body:
     "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
     ui-sans-serif, system-ui, sans-serif;
+  --font-interface-title: var(--font-body);
   --font-outlier:
     "SFMono-Regular", "JetBrains Mono", Consolas, ui-monospace, monospace;
 
@@ -81,6 +82,7 @@
   --text-lg: 1.25rem;
   --text-xl: 1.625rem;
   --text-2xl: clamp(2rem, 4vw, 3.125rem);
+  --text-interface-title: clamp(2rem, 8vw, 2.75rem);
   --text-display: clamp(2.75rem, 7vw, 5.75rem);
 
   --weight-regular: 400;

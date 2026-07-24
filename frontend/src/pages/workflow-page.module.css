@@ -1,5 +1,5 @@
 /* Hallmark · macrostructure: Workbench · tone: technical editorial austere · anchor hue: Signal Green · genre: editorial */
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · slop: pass (58/58) */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · slop: pass (58/58) · mobile: pass (34, 49, 50–57) */
 .narrowPage,
 .listPage,
 .editorPage {
@@ -14,6 +14,9 @@
 
 .listPage {
   max-width: 60rem;
+  padding-block:
+    calc(var(--chrome-top) + var(--space-lg))
+    var(--space-24);
 }
 
 .editorPage {
@@ -36,7 +39,15 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.pageTitle h1,
+.pageTitle h1 {
+  font-family: var(--font-interface-title);
+  font-size: var(--text-interface-title);
+  font-style: normal;
+  font-weight: var(--weight-semibold);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
 .editorHeader h1 {
   font-family: var(--font-display);
   font-size: var(--text-page);
@@ -482,10 +493,16 @@
 
 @media (max-width: 40rem) {
   .narrowPage,
-  .listPage,
   .editorPage {
     width: calc(100% - var(--space-6));
     padding-block: 5.5rem var(--space-16);
+  }
+
+  .listPage {
+    width: calc(100% - var(--space-6));
+    padding-block:
+      calc(var(--chrome-top) + var(--space-lg))
+      var(--space-16);
   }
 
   .editorHeader,
@@ -496,7 +513,6 @@
     flex-direction: column;
   }
 
-  .pageTitle h1,
   .editorHeader h1 {
     font-size: clamp(1.875rem, 10vw, 2.4rem);
   }
