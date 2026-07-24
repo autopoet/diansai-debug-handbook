@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Index-First / Workbench",
+    "theme": "studied-DNA",
+    "theme_axes": "sky-white paper / soft interface sans / #0078e7 signal",
+    "vibe": "quiet utility-first technical editorial",
+    "enrichment": "none",
+    "brief": "Remove repeated authoring guidance, reserve search prompts for the homepage, unify utility page titles with a softer interface type role, and give workflow pages and browser chrome clearer brand spacing."
+  },
+  {
     "date": "2026-07-22",
     "scope": "app",
     "macrostructure": "Identity Scroll / Index-First / Long Document / Workbench",

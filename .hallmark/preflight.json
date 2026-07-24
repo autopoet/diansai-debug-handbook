@@ -22,8 +22,8 @@
     "austere"
   ],
   "selectedSystem": {
-    "theme": "Technical Editorial / Signal Green",
-    "navigation": "N6 Newspaper Masthead, compact product adaptation",
+    "theme": "studied-DNA (source: blog.autopoet.cn / autopoet-my-blog)",
+    "navigation": "functional orbital floating navigation",
     "footer": "Ft2 Inline-rule single line",
     "pages": {
       "home": "Ecosystem Index",
@@ -33,9 +33,11 @@
     }
   },
   "audit": [
-    "搜索、登录输入框和登录模式标签的聚焦反馈过度依赖蓝色线条，模板感明显",
-    "交互需要统一为轻微尺度变化与底部中心信号光晕，同时保留紧凑、即时的键盘焦点提示",
-    "每页动效继续控制在三种原语以内，不引入额外动效库"
+    "新建条目页存在眉题、口号、示例占位和底部说明四层重复引导，填写任务被文案淹没",
+    "搜索提示词应只在首页出现，查 BUG 与全局搜索依靠页面上下文和无障碍标签表达用途",
+    "工作流页面标题误用尖锐展示宋体且尺寸大于查 BUG，需要统一为柔和界面标题角色",
+    "固定左上品牌不参与文档流，提交与审核页面必须显式预留顶部 chrome 空间",
+    "浏览器标签需要明确当前页，并以与信号蓝品牌一致的电路手册图标替代旧青绿色图标"
   ],
   "constraints": [
     "不改变后端接口",

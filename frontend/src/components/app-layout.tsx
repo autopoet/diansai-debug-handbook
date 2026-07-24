@@ -10,7 +10,7 @@ export function AppLayout() {
     const keyword = new URLSearchParams(location.search).get('q')?.trim()
 
     if (location.pathname === '/') {
-      document.title = '从故障现象开始排查｜电赛白皮书'
+      document.title = '首页｜电赛白皮书'
     } else if (location.pathname === '/explore') {
       document.title = keyword
         ? `${keyword.slice(0, 20)}的搜索结果｜电赛白皮书`

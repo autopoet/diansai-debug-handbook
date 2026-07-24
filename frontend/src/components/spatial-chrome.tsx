@@ -53,10 +53,14 @@ export function SpatialChrome() {
     if (searchOpen) inputRef.current?.focus()
   }, [searchOpen])
 
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  function runSearch() {
     const keyword = query.trim()
     navigate(keyword ? `/explore?q=${encodeURIComponent(keyword)}` : '/explore')
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    runSearch()
   }
 
   function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -89,16 +93,15 @@ export function SpatialChrome() {
               ref={inputRef}
               id="global-search"
               value={query}
-              placeholder="描述现象、器件或错误信息"
               maxLength={20}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleSearchKeyDown}
             />
           ) : null}
           <button
-            type={searchOpen ? 'submit' : 'button'}
+            type="button"
             aria-label={searchOpen ? '开始搜索' : '打开搜索'}
-            onClick={searchOpen ? undefined : () => setSearchOpen(true)}
+            onClick={searchOpen ? runSearch : () => setSearchOpen(true)}
           >
             {searchOpen ? (
               <span>搜索</span>

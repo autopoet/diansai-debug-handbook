@@ -1,5 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="18" fill="#007d89"/>
-  <path d="M14 17c8-3 14-1 18 3 4-4 10-6 18-3v31c-8-2-14 0-18 4-4-4-10-6-18-4V17Z" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M32 20v32" stroke="white" stroke-width="4"/>
+  <style>
+    .page { fill: #0078e7; }
+    @media (prefers-color-scheme: dark) {
+      .page { fill: #55aaff; }
+    }
+  </style>
+  <path class="page" d="M6 12.5c9.8-2.7 18.1-.8 25 5.5v36c-6.6-5.7-14.8-8-25-5.6V12.5Z"/>
+  <path class="page" d="M58 12.5c-9.8-2.7-18.1-.8-25 5.5v36c6.6-5.7 14.8-8 25-5.6V12.5Z"/>
+  <path d="M14 24h8v8h5M50 24h-8v8h-5" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  <circle cx="14" cy="24" r="2.5" fill="#fff"/>
+  <circle cx="50" cy="24" r="2.5" fill="#fff"/>
 </svg>

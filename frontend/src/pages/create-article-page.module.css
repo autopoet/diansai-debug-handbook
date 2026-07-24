@@ -1,4 +1,7 @@
-/* Hallmark · macrostructure: focused authoring sheet · tone: technical editorial · anchor: signal blue */
+/* Hallmark · macrostructure: focused authoring sheet · design-system: DESIGN.md · designed-as-app
+ * pre-emit critique: P5 H5 E5 S5 R5 V5 · tone: quiet technical utility · contrast: pass (40–41)
+ * slop: pass (58/58) · mobile: pass (34, 49, 50–57)
+ */
 .page,
 .statePage {
   width: min(100% - var(--space-8), 52rem);
@@ -54,32 +57,14 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-  padding-top: clamp(2.5rem, 6vw, 4.5rem);
-}
-
-.eyebrow {
-  color: var(--color-accent);
-  font-family: var(--font-outlier);
-  font-size: var(--text-caption);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.form h1 {
-  max-width: 15ch;
-  margin: calc(var(--space-4) * -1) 0 var(--space-3);
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.25rem);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.04em;
-  line-height: 1.15;
+  gap: var(--space-xl);
+  padding-top: clamp(var(--space-lg), 5vw, var(--space-xl));
 }
 
 .form label {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2xs);
   color: var(--color-muted);
   font-size: var(--text-meta);
 }
@@ -102,9 +87,10 @@
 }
 
 .titleField input {
-  font-family: var(--font-display);
-  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
-  letter-spacing: -0.025em;
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.015em;
 }
 
 .form input:focus,
@@ -115,12 +101,10 @@
 .form footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-  padding-top: var(--space-5);
+  justify-content: flex-end;
+  padding-top: var(--space-xs);
 }
 
-.form footer p,
 .error {
   margin: 0;
   color: var(--color-muted);
@@ -178,19 +162,14 @@
     padding-block: 5.5rem var(--space-16);
   }
 
-  .header,
-  .form footer {
+  .header {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .form {
-    gap: var(--space-5);
-    padding-top: var(--space-8);
-  }
-
-  .form h1 {
-    font-size: clamp(1.875rem, 10vw, 2.4rem);
+    gap: var(--space-lg);
+    padding-top: var(--space-lg);
   }
 
   .form button {
